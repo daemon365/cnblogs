@@ -5,13 +5,12 @@ Container Device Interface (CDI) 是一个提议的标准，它定义了如何�
 
 CDI 插件通常负责：
 
-    1. 发现宿主机上的设备资源。
-    2. 配置设备以供容器使用（例如，分配设备文件或设置必要的环境变量）。
-    3. 在容器启动时将设备资源注入到容器中。
+1. 配置设备以供容器使用（例如，分配设备文件或设置必要的环境变量）。
+2. 在容器启动时将设备资源注入到容器中。
 
 **官网**
 
-- https://github.com/NVIDIA/k8s-device-plugin
+- https://github.com/cncf-tags/container-device-interface
 
 ## 为什么需要CDI？
 
