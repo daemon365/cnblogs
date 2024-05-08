@@ -40,13 +40,13 @@ iptables 是通过链（chains）和表（tables）来组织规则的。每个�
 我启动了一个 3 个 nginx pod，和一个对应的 service，service 的类型是 `ClusterIP`，这样 service 就会有一个虚拟 IP，这个 IP 会被 kube-proxy 代理到后端的 pod 上。
 
 ```bash
-~ » k get pod                                                                                                                      130 ↵ zhy@daemon
-NAME                                READY   STATUS    RESTARTS   AGE
-nginx-deployment-59f546cb79-2k9ng   1/1     Running   0          3m33s
-nginx-deployment-59f546cb79-wfw84   1/1     Running   0          3m1s
-nginx-deployment-59f546cb79-zr9xm   1/1     Running   0          3m1s
+~ » k get pod -owide
+NAME                                READY   STATUS    RESTARTS      AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+nginx-deployment-59f546cb79-2k9ng   1/1     Running   2 (31m ago)   50m   10.244.0.28   minikube   <none>           <none>
+nginx-deployment-59f546cb79-wfw84   1/1     Running   2 (31m ago)   50m   10.244.0.30   minikube   <none>           <none>
+nginx-deployment-59f546cb79-zr9xm   1/1     Running   2 (31m ago)   50m   10.244.0.27   minikube   <none>           <none>
 ----------------------------------------------------------------------------------------------------------------------------------------------------
-~ » k get svc nginx-service                                                                                                              zhy@daemon
+~ » k get svc nginx-service
 NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
 nginx-service   ClusterIP   10.101.57.97   <none>        80/TCP    29m
 ```
@@ -56,7 +56,7 @@ nginx-service   ClusterIP   10.101.57.97   <none>        80/TCP    29m
 ```BASH
 root@minikube:/# iptables-save |grep PREROUTING
 :PREROUTING ACCEPT [0:0]
-:PREROUTING ACCEPT [77:4620]
+:PREROUTING ACCEPT [34:2040]
 -A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
 -A PREROUTING -d 192.168.49.1/32 -j DOCKER_OUTPUT
 -A PREROUTING -m addrtype --dst-type LOCAL -j DOCKER
@@ -79,9 +79,9 @@ root@minikube:/#  iptables-save |grep "\-A KUBE-SERVICES"
 ```bash
 root@minikube:/#  iptables-save |grep "\-A KUBE-SVC-V2OKYYMBY3REGZOG"
 -A KUBE-SVC-V2OKYYMBY3REGZOG ! -s 10.244.0.0/16 -d 10.101.57.97/32 -p tcp -m comment --comment "default/nginx-service cluster IP" -j KUBE-MARK-MASQ
--A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.20:80" -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-2UTZI2N25QKZP7U7
--A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.21:80" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-AIL3NEC5N472IS6X
--A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.22:80" -j KUBE-SEP-SPCGRBSAA3XFMN3D
+-A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.27:80" -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-POZMZY2HDLRATSJV
+-A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.28:80" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-Z3HXRORN5VDCFRJU
+-A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.30:80" -j KUBE-SEP-S46ZL6MIFVWDY42O
 ```
 
 `-A KUBE-SVC-V2OKYYMBY3REGZOG ! -s 10.244.0.0/16 -d 10.101.57.97/32 -p tcp -m comment --comment "default/nginx-service cluster IP" -j KUBE-MARK-MASQ` 这条规则的如果源ip 不是 `10.244.0.0/16` 的 ip（也就是不是 pod发出来的请求），目的ip 是 service ip，jump 跳转到 这个链 `KUBE-MARK-MASQ`
@@ -96,24 +96,32 @@ root@minikube:/# iptables-save |grep "\-A KUBE-MARK-MASQ"
 接下来看主要的三条规则：
 
 ```BASH
--A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.20:80" -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-2UTZI2N25QKZP7U7
--A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.21:80" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-AIL3NEC5N472IS6X
--A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.22:80" -j KUBE-SEP-SPCGRBSAA3XFMN3D
+-A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.27:80" -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-POZMZY2HDLRATSJV
+-A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.28:80" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-Z3HXRORN5VDCFRJU
+-A KUBE-SVC-V2OKYYMBY3REGZOG -m comment --comment "default/nginx-service -> 10.244.0.30:80" -j KUBE-SEP-S46ZL6MIFVWDY42O
 ```
 
-第一条是说有 33.33% 的几率会被转发到 `KUBE-SEP-2UTZI2N25QKZP7U7`, 第二条是 50% 的几率会被转发到 `KUBE-SEP-AIL3NEC5N472IS6X`, 第三条是一定会被转发到 `KUBE-SEP-SPCGRBSAA3XFMN3D`。
+第一条是说有 33.33% 的几率会被转发到 `KUBE-SEP-POZMZY2HDLRATSJV`, 第二条是 50% 的几率会被转发到 `KUBE-SEP-Z3HXRORN5VDCFRJU`, 第三条是一定会被转发到 `KUBE-SEP-S46ZL6MIFVWDY42O`。
 转到第一条的概率是 33.33%，转到第二条的概率是 66.67%（没有到第一条的概率） * 50% = 33.33%，第三条就是 66.67%（没有到第一条的概率） * 50%（没有到第二条的概率） = 33.33%。所以这三条规则的概率是一样的。都是 33.33%。
-那么 `KUBE-SEP-2UTZI2N25QKZP7U7` 又是什么呢？
+那么 `KUBE-SEP-POZMZY2HDLRATSJV` 又是什么呢？
 
 ```bash
-root@minikube:/# iptables-save |grep "\-A KUBE-SEP-2UTZI2N25QKZP7U7"
--A KUBE-SEP-2UTZI2N25QKZP7U7 -s 10.244.0.20/32 -m comment --comment "default/nginx-service" -j KUBE-MARK-MASQ
--A KUBE-SEP-2UTZI2N25QKZP7U7 -p tcp -m comment --comment "default/nginx-service" -m tcp -j DNAT --to-destination 10.244.0.20:80
+root@minikube:/# iptables-save |grep "\-A KUBE-SEP-POZMZY2HDLRATSJV"
+-A KUBE-SEP-POZMZY2HDLRATSJV -s 10.244.0.27/32 -m comment --comment "default/nginx-service" -j KUBE-MARK-MASQ
+-A KUBE-SEP-POZMZY2HDLRATSJV -p tcp -m comment --comment "default/nginx-service" -m tcp -j DNAT --to-destination 10.244.0.27:80
+
+root@minikube:/# iptables-save |grep "\-A KUBE-SEP-POZMZY2HDLRATSJV"
+-A KUBE-SEP-Z3HXRORN5VDCFRJU -s 10.244.0.28/32 -m comment --comment "default/nginx-service" -j KUBE-MARK-MASQ
+-A KUBE-SEP-Z3HXRORN5VDCFRJU -p tcp -m comment --comment "default/nginx-service" -m tcp -j DNAT --to-destination 10.244.0.28:80
+
+root@minikube:/# iptables-save |grep "\-A KUBE-SEP-S46ZL6MIFVWDY42O"
+-A KUBE-SEP-S46ZL6MIFVWDY42O -s 10.244.0.30/32 -m comment --comment "default/nginx-service" -j KUBE-MARK-MASQ
+-A KUBE-SEP-S46ZL6MIFVWDY42O -p tcp -m comment --comment "default/nginx-service" -m tcp -j DNAT --to-destination 10.244.0.30:80
 ```
 
 第一条规则确保流量从 10.244.0.20 发出时被打上 MASQUERADE 标记，以便通过 NAT 机制进行 IP 伪装。
-第二条是将流量转发到 `10.244.0.20:80` 并使用 DNAT 机制进行目标地址转换。
-`KUBE-SEP-AIL3NEC5N472IS6X` 和 `KUBE-SEP-SPCGRBSAA3XFMN3D` 的规则和这条同理。
+第二条是将流量转发到 `10.244.0.20:80` 并使用 DNAT 机制进行目标地址转换, 转换的 ip `10.244.0.27:80` 就是 pod 的 ip 和端口。
+`KUBE-SEP-Z3HXRORN5VDCFRJU` 和 `KUBE-SEP-S46ZL6MIFVWDY42O` 的规则和这条同理。
 
 ## ipvs
 
@@ -134,6 +142,7 @@ UDP  10.96.0.10:53 rr
 ```
 
 这个的意思是到`10.101.57.97:80` 的 tcp 浏览会使用 rr（轮询）的方式转发到 `10.244.0.27:80`，`10.244.0.28:80`，`10.244.0.30:80` 这三个 pod 上。Masq：指示 "Masquerading"，表示通过 NAT 来处理网络流量。
+所以 ipvs 的模式比 iptables 性能高的多，第一因为 ipvs 是轮询选，iptables 是逐条百分比匹配的，这个还是可以接受的。更要命的是第二条，当 pod 频繁变更的时候 service 对应的 endpoint 的 ENDPOINTS 就会增加或者是减少。那么 iptables 对应 service 的所有规则的百分比都会变化，就会导致一个 service 的规则全部要重刷，当 pod 变化太频繁时，会吃掉大量的 CPU。 
 
 不是说开启了 ipvs 就不会有 iptables 了，还需要 iptables 的 SNAT 规则来处理返回的数据包。
 
@@ -161,6 +170,7 @@ Members:
 10.244.0.29,tcp:53,10.244.0.29
 10.244.0.27,tcp:80,10.244.0.27
 10.244.0.29,udp:53,10.244.0.29
+
 ```
 
 很明显我们的三个 pod 都在这个 set 里面。
